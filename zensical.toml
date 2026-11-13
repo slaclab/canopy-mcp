@@ -1,18 +1,20 @@
 [project]
-site_name = "swapps-py-template"
-site_url = "https://slaclab.github.io/swapps-py-template/"
+site_name = "canopy-mcp"
+site_url = "https://slaclab.github.io/canopy-mcp/"
 site_author = "SLAC National Accelerator Laboratory - EED / Software Applications Group"
-site_description = "Documentation for the swapps-py-template Python project."
+site_description = "Documentation for canopy-mcp, the MCP server for building, checking and showing Canopy screens."
 
-repo_name = "slaclab/swapps-py-template"
-repo_url = "https://github.com/slaclab/swapps-py-template"
+repo_name = "slaclab/canopy-mcp"
+repo_url = "https://github.com/slaclab/canopy-mcp"
 
 nav = [
   { "Home" = "index.md" },
-  { "How To" = "how_to/index.md" },
-  { "API Reference" = [
-    { "Overview" = "api_reference/index.md" },
-    { "hello_world" = "api_reference/hello_world.md" },
+  { "How To" = [
+    { "Overview" = "how_to/index.md" },
+    { "Panel-builder skill" = "how_to/panel_builder_skill.md" },
+    { "Library report" = "how_to/library_report.md" },
+    { "Request a push" = "how_to/request_push.md" },
+    { "Collections" = "how_to/collections.md" },
   ] },
 ]
 

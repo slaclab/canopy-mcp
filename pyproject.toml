@@ -1,14 +1,43 @@
 [project]
-name = "swapps-py-template"
+name = "canopy-mcp"
 dynamic = ["version"]
-description = "Python project template for projects made by the Software Applications team in EED."
+description = "MCP server for building, checking and showing Canopy screens"
 readme = "README.md"
 requires-python = ">=3.12"
+dependencies = [
+    # canopy_mcp talks to the canopy backend over HTTP, and imports a few shared
+    # pieces from it: the contracts, the color scheme, logging and the offline
+    # formula validator. The name `canopy` on PyPI is an unrelated project, so
+    # canopy comes from git. The pin is the commit canopy_mcp was built on.
+    "canopy @ git+https://github.com/slaclab/canopy.git@466cbe11f4d8a74c343aeacd4e060a88936bebda",
+    "fastmcp>=3.4.4",
+    "httpx>=0.27",
+    "jsonschema>=4.21,<5",
+    # The screenshot browser.
+    "playwright>=1.61",
+    # Kills a Playwright driver that will not stop, with its process tree.
+    "psutil>=6",
+    "pydantic>=2.7",
+    "pydantic-settings>=2.11",
+    # Serves the color scheme the converter's flattener builds.
+    "PyDMConverter>=1.1.0",
+    # The workspace hub's event stream (EventSourceResponse, ends on the server's exit signal).
+    "sse-starlette>=3.4",
+    "starlette>=0.40",
+    "uvicorn>=0.36",
+    # >=14: the first release whose asyncio client has ``process_redirect``,
+    # which the screenshot browser's relay needs to refuse redirects.
+    "websockets>=14",
+]
+
+[project.scripts]
+# Checks a facility collection directory before it is deployed.
+canopy-collections-check = "canopy_mcp.collections_cli:main"
 
 [project.urls]
-Repository = "https://github.com/slaclab/swapps-py-template"
-Issues = "https://github.com/slaclab/swapps-py-template/issues"
-Documentation = "https://slaclab.github.io/swapps-py-template/"
+Repository = "https://github.com/slaclab/canopy-mcp"
+Issues = "https://github.com/slaclab/canopy-mcp/issues"
+Documentation = "https://slaclab.github.io/canopy-mcp/"
 
 [dependency-groups]
 dev = [
@@ -18,10 +47,14 @@ dev = [
 ]
 pre-commit = [
     "pre-commit",
-    "pyright",
 ]
 test = [
-    "pytest",
+    "pytest>=8.0",
+    # The oldest release that collects package directories under pytest 8.
+    "pytest-asyncio>=0.23.5",
+    # The oldest release whose add_response takes is_reusable.
+    "pytest-httpx>=0.34",
+    "import-linter>=2.0",
 ]
 docs = [
     "zensical",
@@ -36,24 +69,131 @@ build-backend = "hatchling.build"
 [tool.hatch.version]
 source = "vcs"
 
+[tool.hatch.metadata]
+# canopy is a git dependency (see above).
+allow-direct-references = true
+
 [tool.hatch.build.targets.wheel]
-packages = ["src/swapps_py_template"]
+packages = ["src/canopy_mcp"]
 
 [tool.uv]
 package = true
+# Temporary: canopy_mcp needs PyDMConverter 1.1.0 (pydmconverter.scheme), which is
+# not on PyPI yet. Until it is, uv takes it from the commit at the head of the
+# pydm-converter-tool PRs that add it. A build from git reports a 1.0.9 dev
+# version, so this replaces every requirement on it, the >=1.1.0 above included.
+# Remove this once 1.1.0 is released.
+override-dependencies = [
+    "pydmconverter @ git+https://github.com/slaclab/pydm-converter-tool.git@67129697d7fa8b87309f96e4f08ee05f38dc7867",
+]
+# The lock stays below Playwright 1.65, which moved the private module that
+# browser._tolerate_codeless_close patches (test_browser_lifecycle pins it); lift
+# this once that workaround is checked on 1.65.
+constraint-dependencies = [
+    "playwright<1.65",
+]
 
 [tool.ruff]
 extend-exclude = ["__init__.py"]
 line-length = 120
+target-version = "py312"
 
 [tool.ruff.lint]
-select = ["E4", "E501", "E7", "E9", "F", "I"]
+# canopy's rule set, with ruff's import sorting (I) standing in for canopy's isort hook.
+select = ["E", "F", "W", "UP", "I"]
+ignore = ["E402", "E501"]
+
+[tool.ruff.lint.isort]
+length-sort = true
+known-first-party = ["canopy", "canopy_mcp"]
 
 [tool.pytest.ini_options]
-pythonpath = ["src"]
+asyncio_mode = "auto"
+markers = [
+    "live: needs a running canopy stack; skipped unless CANOPY_LIVE=1",
+    "perf: asserts timing bounds that hold on operator-class hardware; deselected on shared CI runners",
+]
 filterwarnings = [
     "ignore::DeprecationWarning",
 ]
 
-[tool.pyright]
-include = ["src"]
+[tool.importlinter]
+root_packages = ["canopy_mcp", "canopy"]
+
+# The MCP server core (authoring, checks, the viewer host) stands on its own: the
+# shared screen library (saved views, collections, workspace, push, report) builds
+# on it and is mounted onto the app in one place (canopy_mcp.shared_library).
+[[tool.importlinter.contracts]]
+name = "the MCP server core does not import the shared screen library"
+type = "forbidden"
+source_modules = [
+    "canopy_mcp.access",
+    "canopy_mcp.browser",
+    "canopy_mcp.catalog",
+    "canopy_mcp.channels",
+    "canopy_mcp.check",
+    "canopy_mcp.client",
+    "canopy_mcp.config",
+    "canopy_mcp.forward",
+    "canopy_mcp.formulas",
+    "canopy_mcp.http",
+    "canopy_mcp.merge",
+    "canopy_mcp.png",
+    "canopy_mcp.refs",
+    "canopy_mcp.screens",
+    "canopy_mcp.server",
+    "canopy_mcp.skill",
+    "canopy_mcp.static",
+    "canopy_mcp.store",
+    "canopy_mcp.text",
+    "canopy_mcp.urls",
+    "canopy_mcp.validate",
+    "canopy_mcp.tools._common",
+    "canopy_mcp.tools.check",
+    "canopy_mcp.tools.convert",
+    "canopy_mcp.tools.drafts",
+    "canopy_mcp.tools.pvs",
+    "canopy_mcp.tools.screenshot",
+    "canopy_mcp.tools.widgets",
+]
+forbidden_modules = [
+    "canopy_mcp.collections",
+    "canopy_mcp.collections_cli",
+    "canopy_mcp.layout",
+    "canopy_mcp.library_screens",
+    "canopy_mcp.listing",
+    "canopy_mcp.member_key",
+    "canopy_mcp.report",
+    "canopy_mcp.shared_library",
+    "canopy_mcp.views",
+    "canopy_mcp.workspace",
+    "canopy_mcp.workspace_routes",
+    "canopy_mcp.tools.collections",
+    "canopy_mcp.tools.push",
+    "canopy_mcp.tools.workspace",
+]
+
+# canopy_mcp talks to canopy over HTTP. It may use the shared kernel
+# (canopy.core, canopy.contracts) and, for the formula checks, the formula-engine
+# gateway; every other module is off limits.
+[[tool.importlinter.contracts]]
+name = "canopy_mcp reaches canopy modules only through the formula-engine gateway"
+type = "forbidden"
+source_modules = ["canopy_mcp"]
+forbidden_modules = [
+    "canopy.formula_engine",
+    "canopy.mole",
+    "canopy.hare",
+    "canopy.vole",
+    "canopy.raccoon",
+    "canopy.jobs",
+    "canopy.converter",
+    "canopy.squirrel",
+    "canopy.magpie",
+    "canopy.analytics",
+    "canopy.epics",
+    "canopy.elog",
+]
+ignore_imports = [
+    "canopy_mcp.formulas -> canopy.formula_engine.gateway",
+]

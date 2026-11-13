@@ -11,8 +11,37 @@ permissions:
   contents: read
 
 jobs:
+  # The draft store locks files with fcntl, so the suite runs on POSIX only
+  # (on Windows every test would skip).
   tests:
-    uses: slaclab/swapps-ci-helpers/.github/workflows/python-test.yml@8bd53f378725947845695f855304e7780407c66e
-    with:
-      python-version: "3.12"
-      test-path: "tests/"
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      with:
+        persist-credentials: false
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+      with:
+        python-version: "3.12"
+
+    - name: Install dependencies
+      run: uv sync --locked --group test
+
+    - name: Check import contracts
+      run: uv run lint-imports
+
+    # The browser tests drive Chromium; they fail, not skip, where it is absent.
+    # --with-deps adds the system libraries Chromium needs on Linux.
+    - name: Install Chromium
+      run: uv run playwright install ${{ runner.os == 'Linux' && '--with-deps' || '' }} chromium
+
+    # The perf bounds are for operator-class hardware, not a shared runner.
+    - name: Test with pytest
+      run: uv run pytest tests/ -v -m "not perf"
