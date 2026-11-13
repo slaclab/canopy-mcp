@@ -1,13 +1,12 @@
 # canopy_mcp
 
-The panel-builder MCP server. It ships in the canopy wheel as a second
-top-level package, installed with the `mcp` extra, and talks to the canopy
-backend over HTTP only.
+The panel-builder MCP server. It talks to the canopy backend over HTTP
+only.
 
 ## Install
 
 ```sh
-uv sync --extra mcp
+uv sync
 uv run playwright install --with-deps chromium
 ```
 
@@ -414,11 +413,11 @@ agent should use the tools is in the `canopy-operator` skill.
 ### Developer recipe
 
 A local server, a browser window and a bare Claude Code session, with no
-backend and two screens of the fixture library. From a canopy checkout, with
+backend and two screens of the fixture library. From a canopy-mcp checkout, with
 the viewer built (`pnpm build` in the viewer's package gives its `dist/`):
 
 ```sh
-uv sync --extra mcp
+uv sync
 CANOPY_WORKSPACE=1 \
 CANOPY_PV_MODE=mock \
 CANOPY_VIEWER_DIST=/path/to/viewer/dist \

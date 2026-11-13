@@ -1,6 +1,6 @@
 # The panel-builder skill
 
-The panel-builder server (`canopy_mcp`, installed with the `mcp` extra) lets
+The panel-builder server (`canopy_mcp`, from the canopy-mcp package) lets
 an agent build Canopy screens through MCP tools. The `canopy-panel-builder` skill is the guide the
 agent works by: where screens live, the Screen-IR file format, which tool to
 call when, and what to do when a call is refused. This page says how to
@@ -22,8 +22,8 @@ and prints that path. Missing directories are created. Running it again is
 safe: a copy that already holds the same bytes is left alone, and an older
 one is replaced atomically, so a reader never sees half a skill.
 
-The command needs only the standard library. It runs wherever the Canopy
-wheel is installed, with or without the `mcp` extra.
+The command needs only the standard library. It runs wherever canopy-mcp
+is installed.
 
 ## 2. Keep one source of the text
 

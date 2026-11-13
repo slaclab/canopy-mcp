@@ -10,7 +10,7 @@ python -m canopy_mcp.report <root> [--served-at personal|library] (--emit|--writ
 ```
 
 `<root>` is a store root, the directory that holds `screens/`. The command
-needs the Canopy wheel and nothing else; it talks to no server.
+needs canopy-mcp and nothing else; it talks to no server.
 
 ## 1. Write the report
 

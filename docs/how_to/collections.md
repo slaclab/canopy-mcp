@@ -177,4 +177,4 @@ not appear twice.
 ## The format
 
 The full format, every rule and the HTTP surface are in
-`src/canopy_mcp/COLLECTIONS.md` in the Canopy repository.
+[`src/canopy_mcp/COLLECTIONS.md`](https://github.com/slaclab/canopy-mcp/blob/main/src/canopy_mcp/COLLECTIONS.md).
