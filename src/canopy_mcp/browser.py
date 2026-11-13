@@ -57,9 +57,8 @@ from websockets.asyncio.client import ClientConnection, connect
 from canopy_mcp.access import ACCESS_HEADER
 
 if TYPE_CHECKING:
-    from playwright.async_api import Route
+    from playwright.async_api import Route, Request, Playwright, BrowserContext, WebSocketRoute
     from playwright.async_api import Browser as PlaywrightBrowser
-    from playwright.async_api import Request, Playwright, BrowserContext, WebSocketRoute
 
 logger = logging.getLogger(__name__)
 
