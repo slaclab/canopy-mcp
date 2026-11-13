@@ -1,0 +1,11 @@
+name: pre-commit
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  pre-commit:
+    uses: slaclab/swapps-ci-helpers/.github/workflows/python-pre-commit.yml@8bd53f378725947845695f855304e7780407c66e

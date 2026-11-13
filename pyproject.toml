@@ -1,0 +1,59 @@
+[project]
+name = "swapps-py-template"
+dynamic = ["version"]
+description = "Python project template for projects made by the Software Applications team in EED."
+readme = "README.md"
+requires-python = ">=3.12"
+
+[project.urls]
+Repository = "https://github.com/slaclab/swapps-py-template"
+Issues = "https://github.com/slaclab/swapps-py-template/issues"
+Documentation = "https://slaclab.github.io/swapps-py-template/"
+
+[dependency-groups]
+dev = [
+    {include-group = "test"},
+    {include-group = "docs"},
+    {include-group = "pre-commit"},
+]
+pre-commit = [
+    "pre-commit",
+    "pyright",
+]
+test = [
+    "pytest",
+]
+docs = [
+    "zensical",
+    "mkdocstrings",
+    "mkdocstrings-python",
+]
+
+[build-system]
+requires = ["hatchling", "hatch-vcs"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "vcs"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/swapps_py_template"]
+
+[tool.uv]
+package = true
+
+[tool.ruff]
+extend-exclude = ["__init__.py"]
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E4", "E501", "E7", "E9", "F", "I"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+]
+
+[tool.pyright]
+include = ["src"]

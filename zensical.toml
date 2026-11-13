@@ -1,0 +1,68 @@
+[project]
+site_name = "swapps-py-template"
+site_url = "https://slaclab.github.io/swapps-py-template/"
+site_author = "SLAC National Accelerator Laboratory - EED / Software Applications Group"
+site_description = "Documentation for the swapps-py-template Python project."
+
+repo_name = "slaclab/swapps-py-template"
+repo_url = "https://github.com/slaclab/swapps-py-template"
+
+nav = [
+  { "Home" = "index.md" },
+  { "How To" = "how_to/index.md" },
+  { "API Reference" = [
+    { "Overview" = "api_reference/index.md" },
+    { "hello_world" = "api_reference/hello_world.md" },
+  ] },
+]
+
+[project.theme]
+language = "en"
+features = [
+  "content.code.copy",
+  "navigation.top",
+  "navigation.tabs",
+  "navigation.indexes",
+  "navigation.footer",
+  "search.highlight",
+]
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme: light)"
+scheme = "default"
+primary = "black"
+toggle.icon = "material/toggle-switch-off-outline"
+toggle.name = "Switch to dark mode"
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme: dark)"
+scheme = "slate"
+primary = "black"
+toggle.icon = "material/toggle-switch"
+toggle.name = "Switch to light mode"
+
+[project.extra]
+generator = false
+
+[project.plugins.mkdocstrings]
+[project.plugins.mkdocstrings.config.handlers.python]
+paths = ["src"]
+
+[project.plugins.mkdocstrings.config.handlers.python.options]
+docstring_style = "numpy"
+members_order = "source"
+show_root_toc_entry = false
+show_symbol_type_toc = true
+merge_init_into_class = true
+
+[project.plugins.mkdocstrings.config.handlers.python.options.docstring_options]
+ignore_init_summary = true
+
+[project.markdown_extensions]
+attr_list = {}
+md_in_html = {}
+toc.permalink = true
+pymdownx.emoji.emoji_generator = "zensical.extensions.emoji.to_svg"
+pymdownx.emoji.emoji_index = "zensical.extensions.emoji.twemoji"
+pymdownx.highlight = {}
+pymdownx.superfences = {}
