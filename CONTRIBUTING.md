@@ -19,13 +19,12 @@ tests use; on Linux, add `--with-deps` for its system libraries.
 ## Running Tests
 
 ```bash
-uv run pytest tests/ -v -m "not perf"
+uv run pytest tests/ -v
 uv run lint-imports
 ```
 
-The `perf` tests assert timing bounds for operator-class hardware and are left
-out on shared runners. The `live` tests need a running canopy stack and run
-only with `CANOPY_LIVE=1`. `lint-imports` checks the import contracts in
+The `live` tests need a running canopy stack and run only with
+`CANOPY_LIVE=1`. `lint-imports` checks the import contracts in
 `pyproject.toml`.
 
 ## Code Style
@@ -41,7 +40,8 @@ uv run pre-commit run --all-files
 ## Building Docs
 
 ```bash
-uv run zensical serve
+uv run zensical serve        # preview with live reload
+uv run zensical build --strict
 ```
 
 ## Submitting Changes

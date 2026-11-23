@@ -32,7 +32,8 @@ CANOPY_VIEWER_DIST=/path/to/viewer/dist \
 uv run python -m canopy_mcp --http --host 127.0.0.1 --port 8765
 ```
 
-The MCP endpoint is `http://127.0.0.1:8765/mcp`. The same port serves the
+The MCP endpoint is `http://127.0.0.1:8765/mcp`. Drafts go to `./drafts`
+unless `CANOPY_DRAFTS_DIR` names another directory. The same port serves the
 embedded viewer, the draft screens and the saved views. Every setting, tool
 and route is described in [`src/canopy_mcp/README.md`](src/canopy_mcp/README.md);
 read *Single-user host or access token* there before serving it to other users.
@@ -42,7 +43,7 @@ read *Single-user host or access token* there before serving it to other users.
 See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, tests and code style, and
 [SECURITY.md](SECURITY.md) to report a vulnerability.
 
-The documentation is built with `uv run zensical serve`.
+Preview the documentation with `uv run zensical serve`.
 
 ## License
 

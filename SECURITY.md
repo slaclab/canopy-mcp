@@ -32,10 +32,17 @@ canopy-mcp is pre-1.0 and under active development. Security fixes are made on
   backend and refuses to start without both an access token
   (`CANOPY_ACCESS_TOKEN_FILE`) and a write-scope key file
   (`CANOPY_WRITE_API_KEY_FILE`).
-- Without an access token, no route but `/mcp` asks who is calling, and the
-  saved views, collections and workspace routes guard their writes only by
-  `Sec-Fetch-Site`. Run such a server on a single-user host, bound to loopback
-  (the default). On a host other users can reach, set `CANOPY_ACCESS_TOKEN_FILE`.
+- Without an access token nothing is authenticated. `/mcp` only refuses
+  requests that came through the embedding host's proxy, so any process that
+  can reach the port can call every tool, and the saved views, collections and
+  workspace routes guard their writes only by `Sec-Fetch-Site`. Run such a
+  server on a single-user host, bound to loopback (the default). On a host
+  other users can reach, set `CANOPY_ACCESS_TOKEN_FILE`.
+- The `convert_legacy` tool reads any file the server's user can read: it posts
+  the file to the converter at `CANOPY_BASE_URL` and copies image files found
+  beside it into the drafts store. Run the server as a user whose readable
+  files may be shown to the agent, or set `CANOPY_AUTHORING=0`, which takes
+  `convert_legacy` and the other authoring tools off the server.
 - Give the server a read-scope key for the backend, and prefer the `_FILE`
   settings to passing keys in the environment.
 - `CANOPY_WORKSPACE=1` lets an agent change what is on the operator's screen.
@@ -44,6 +51,7 @@ canopy-mcp is pre-1.0 and under active development. Security fixes are made on
   sandbox unless `CANOPY_BROWSER_SANDBOX=1`, because the sandbox needs user
   namespaces a container usually lacks; set it where the host allows. Either
   way each page is locked to this server's origin: a request to any other
-  origin is aborted, and only GET, HEAD and OPTIONS requests go through.
+  origin is aborted, only GET, HEAD and OPTIONS requests go through, and
+  same-origin WebSockets are relayed through the server.
 - Report a vulnerability in a dependency, canopy included, to that project.
   Tell us too if canopy-mcp's usage of it makes the impact worse.
