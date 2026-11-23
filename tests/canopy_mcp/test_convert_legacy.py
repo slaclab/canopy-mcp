@@ -550,16 +550,18 @@ async def test_content_mode_has_no_source(settings, converter):
 
 
 async def test_refs_without_a_dest_short_circuit(settings, converter, tmp_path):
+    # The converter's .bob gate drops refs that are not file paths (a scheme, a URL, a
+    # macro) before they reach the tool, so each status here comes from a path it keeps.
     src = tmp_path / "src"
-    refs_ = ["platform:/plugin/x/icons/a.png", "HTTPS://x/A.png", "../../../up.png", "${IMG}.png"]
+    refs_ = ["/opt/icons/a.png", "../../../up.png", "images/a+b.png", "images/notes.txt"]
     out = await _port(_panel(src, *refs_))
     got = {a["ref"]: a for a in out["assets"]}
     assert [a["ref"] for a in out["assets"]] == refs_
     assert {r: a["status"] for r, a in got.items()} == {
-        "platform:/plugin/x/icons/a.png": "invalid_ref",
-        "HTTPS://x/A.png": "external",
+        "/opt/icons/a.png": "external",
         "../../../up.png": "above_root",
-        "${IMG}.png": "invalid_ref",
+        "images/a+b.png": "invalid_ref",
+        "images/notes.txt": "invalid_ref",
     }
     for asset in out["assets"]:
         assert asset["path"] is None and asset["bytes"] is None
@@ -694,7 +696,7 @@ async def test_symlink_to_a_non_image_is_not_published(settings, converter, tmp_
 async def test_one_entry_per_image_ref_of_every_unit(settings, converter, tmp_path):
     src = tmp_path / "src"
     _plant(src / "images" / "a.png", PNG)
-    out = await _port(_panel(src, "images/a.png", "images/a.png", "https://x/a.png"))
+    out = await _port(_panel(src, "images/a.png", "images/a.png", "/x/a.png"))
     assert [a["status"] for a in out["assets"]] == ["written", "reused", "external"]
 
 
