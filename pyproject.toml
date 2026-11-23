@@ -10,11 +10,15 @@ dependencies = [
     # formula validator. The name `canopy` on PyPI is an unrelated project, so
     # canopy comes from git. The pin is the commit canopy_mcp was built on.
     "canopy @ git+https://github.com/slaclab/canopy.git@466cbe11f4d8a74c343aeacd4e060a88936bebda",
+    # The WebSocket relays' task groups (forward.py).
+    "anyio>=4",
     "fastmcp>=3.4.4",
     "httpx>=0.27",
     "jsonschema>=4.21,<5",
-    # The screenshot browser.
-    "playwright>=1.61",
+    # The screenshot browser. Below 1.65: 1.65 removed the private close listener
+    # browser._tolerate_codeless_close patches (test_browser_lifecycle pins it), so
+    # the workaround would silently stop; lift the cap once it is ported.
+    "playwright>=1.61,<1.65",
     # Kills a Playwright driver that will not stop, with its process tree.
     "psutil>=6",
     "pydantic>=2.7",
@@ -57,9 +61,9 @@ test = [
     "import-linter>=2.0",
 ]
 docs = [
-    "zensical",
-    "mkdocstrings",
-    "mkdocstrings-python",
+    "zensical>=0.0.51",
+    "mkdocstrings>=0.24",
+    "mkdocstrings-python>=1.8",
 ]
 
 [build-system]
@@ -86,12 +90,6 @@ package = true
 override-dependencies = [
     "pydmconverter @ git+https://github.com/slaclab/pydm-converter-tool.git@67129697d7fa8b87309f96e4f08ee05f38dc7867",
 ]
-# The lock stays below Playwright 1.65, which moved the private module that
-# browser._tolerate_codeless_close patches (test_browser_lifecycle pins it); lift
-# this once that workaround is checked on 1.65.
-constraint-dependencies = [
-    "playwright<1.65",
-]
 
 [tool.ruff]
 extend-exclude = ["__init__.py"]
@@ -111,7 +109,7 @@ known-first-party = ["canopy", "canopy_mcp"]
 asyncio_mode = "auto"
 markers = [
     "live: needs a running canopy stack; skipped unless CANOPY_LIVE=1",
-    "perf: asserts timing bounds that hold on operator-class hardware; deselected on shared CI runners",
+    "real_data_summary: keeps the real DATA summary reader instead of the conftest stub",
 ]
 filterwarnings = [
     "ignore::DeprecationWarning",

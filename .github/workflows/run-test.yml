@@ -10,6 +10,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   # The draft store locks files with fcntl, so the suite runs on POSIX only
   # (on Windows every test would skip).
@@ -19,6 +23,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
 
     steps:
     - name: Checkout repository
@@ -42,6 +47,5 @@ jobs:
     - name: Install Chromium
       run: uv run playwright install ${{ runner.os == 'Linux' && '--with-deps' || '' }} chromium
 
-    # The perf bounds are for operator-class hardware, not a shared runner.
     - name: Test with pytest
-      run: uv run pytest tests/ -v -m "not perf"
+      run: uv run pytest tests/ -v

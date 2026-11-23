@@ -8,7 +8,6 @@ resolution-markers = [
 ]
 
 [manifest]
-constraints = [{ name = "playwright", specifier = "<1.65" }]
 overrides = [{ name = "pydmconverter", git = "https://github.com/slaclab/pydm-converter-tool.git?rev=67129697d7fa8b87309f96e4f08ee05f38dc7867" }]
 
 [[package]]
@@ -183,6 +182,7 @@ dependencies = [
 name = "canopy-mcp"
 source = { editable = "." }
 dependencies = [
+    { name = "anyio" },
     { name = "canopy" },
     { name = "fastmcp" },
     { name = "httpx" },
@@ -226,11 +226,12 @@ test = [
 
 [package.metadata]
 requires-dist = [
+    { name = "anyio", specifier = ">=4" },
     { name = "canopy", git = "https://github.com/slaclab/canopy.git?rev=466cbe11f4d8a74c343aeacd4e060a88936bebda" },
     { name = "fastmcp", specifier = ">=3.4.4" },
     { name = "httpx", specifier = ">=0.27" },
     { name = "jsonschema", specifier = ">=4.21,<5" },
-    { name = "playwright", specifier = ">=1.61" },
+    { name = "playwright", specifier = ">=1.61,<1.65" },
     { name = "psutil", specifier = ">=6" },
     { name = "pydantic", specifier = ">=2.7" },
     { name = "pydantic-settings", specifier = ">=2.11" },
@@ -244,18 +245,18 @@ requires-dist = [
 [package.metadata.requires-dev]
 dev = [
     { name = "import-linter", specifier = ">=2.0" },
-    { name = "mkdocstrings" },
-    { name = "mkdocstrings-python" },
+    { name = "mkdocstrings", specifier = ">=0.24" },
+    { name = "mkdocstrings-python", specifier = ">=1.8" },
     { name = "pre-commit" },
     { name = "pytest", specifier = ">=8.0" },
     { name = "pytest-asyncio", specifier = ">=0.23.5" },
     { name = "pytest-httpx", specifier = ">=0.34" },
-    { name = "zensical" },
+    { name = "zensical", specifier = ">=0.0.51" },
 ]
 docs = [
-    { name = "mkdocstrings" },
-    { name = "mkdocstrings-python" },
-    { name = "zensical" },
+    { name = "mkdocstrings", specifier = ">=0.24" },
+    { name = "mkdocstrings-python", specifier = ">=1.8" },
+    { name = "zensical", specifier = ">=0.0.51" },
 ]
 pre-commit = [{ name = "pre-commit" }]
 test = [
