@@ -3,7 +3,9 @@
 canopy-mcp is the panel-builder MCP server for Canopy. It lets an agent build,
 check and screenshot Canopy screens, convert legacy `.bob`, `.opi`, `.edl` and
 `.ui` panels, and, when the operator allows it, show screens on the operator's
-workspace. It talks to the canopy backend over HTTP and never writes a PV.
+workspace. It talks to the canopy backend over HTTP. No MCP tool writes a PV; the
+viewer it hosts can, but only with the PV-write relay turned on
+(`CANOPY_PUT_RELAY=1`).
 
 The same port serves the MCP endpoint (`/mcp`), the embedded viewer, the draft
 screens, the saved views and, when enabled, the workspace routes.

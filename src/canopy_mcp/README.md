@@ -82,10 +82,12 @@ a non-zero status before any socket is bound.
 
 ### Single-user host or access token
 
-Without `CANOPY_ACCESS_TOKEN_FILE` no route but `/mcp` asks who is calling. The
-saved views, the collections and the workspace routes guard their writes only
-by `Sec-Fetch-Site`, which keeps a cross-site page out but which a local
-process simply leaves out. Run such a server on a single-user host, bound to
+Without `CANOPY_ACCESS_TOKEN_FILE` nothing is authenticated: `/mcp` only
+refuses requests that came through the embedding host's proxy, so any process
+that can reach the port can call every tool, and the saved views, the
+collections and the workspace routes guard their writes only by
+`Sec-Fetch-Site`, which keeps a cross-site page out but which a local process
+simply leaves out. Run such a server on a single-user host, bound to
 loopback (the default). On a host other users can reach, set the access token:
 every route then answers only requests that carry it, and the embedding
 host's proxy adds it.
@@ -431,7 +433,7 @@ claims the slot. Then, in the project you will run Claude Code in:
 
 ```sh
 claude mcp add --transport http canopy http://127.0.0.1:8765/mcp
-uv run --project /path/to/canopy python -m canopy_mcp.skill install .
+uv run --project /path/to/canopy-mcp python -m canopy_mcp.skill install .
 claude
 ```
 
