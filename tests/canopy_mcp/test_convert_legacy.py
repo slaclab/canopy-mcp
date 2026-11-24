@@ -800,7 +800,7 @@ async def test_an_image_outside_the_roots_is_not_copied(settings, converter, all
     assert not list((settings.drafts_dir / "screens").rglob("*.png"))
 
 
-SECRET_FILES = ("api_key_file", "access_token_file", "write_api_key_file")
+SECRET_FILES = ("api_key_file", "access_token_file", "mcp_token_file", "write_api_key_file")
 
 
 @pytest.mark.parametrize("setting", SECRET_FILES)

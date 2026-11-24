@@ -11,7 +11,8 @@ an explicit environment. Two rules hold for every variable:
 - A secret named by a ``*_FILE`` variable comes only from that file: one that
   cannot supply it raises :class:`~canopy_mcp.access.CredentialFileError`
   instead of falling back, and the PUT relay switched on without its secrets
-  raises :class:`RelayConfigError`. Either way nothing is served.
+  (the write key, the access token and the MCP token) raises
+  :class:`RelayConfigError`. Either way nothing is served.
 """
 
 import os
@@ -68,6 +69,11 @@ class Settings(BaseSettings):
     # File holding the credential every request but GET /health must carry
     # as X-Canopy-Access; unset means no credential is asked for.
     access_token_file: Path | None = None
+    # File holding the credential requests under /mcp carry instead, which then
+    # opens nothing else (canopy_mcp.access.AccessGate). Needs access_token_file,
+    # must differ from it, and is required with put_relay on; unset means the
+    # access credential opens /mcp too.
+    mcp_token_file: Path | None = None
     # Address the server is reachable at, for its own screenshot browser and, without
     # a url_prefix, for the URLs the tools return; the launcher fills it in from the
     # port it serves when it is unset.
@@ -256,6 +262,18 @@ class Settings(BaseSettings):
             raise RelayConfigError("CANOPY_PUT_RELAY is on but CANOPY_WRITE_API_KEY_FILE is not set")
         if self.access_token_file is None:
             raise RelayConfigError("CANOPY_PUT_RELAY is on but CANOPY_ACCESS_TOKEN_FILE is not set")
+        # Without its own credential /mcp takes the access credential, so an
+        # agent handed that could also drive the relay.
+        if self.mcp_token_file is None:
+            raise RelayConfigError("CANOPY_PUT_RELAY is on but CANOPY_MCP_TOKEN_FILE is not set")
+        return self
+
+    @model_validator(mode="after")
+    def _refuse_an_mcp_token_without_an_access_token(self) -> "Settings":
+        # The MCP credential only splits /mcp off a gated server; alone it
+        # would gate /mcp and leave every other route as open as no token.
+        if self.mcp_token_file is not None and self.access_token_file is None:
+            raise ValueError("CANOPY_MCP_TOKEN_FILE is set but CANOPY_ACCESS_TOKEN_FILE is not")
         return self
 
     @property
@@ -291,8 +309,8 @@ class Settings(BaseSettings):
 
     @property
     def secret_file_paths(self) -> tuple[Path, ...]:
-        """Every configured secret file: the read key's, the access token's and the write key's."""
-        named = (self.api_key_file, self.access_token_file, self.write_api_key_file)
+        """Every configured secret file: the read key's, the access and MCP tokens' and the write key's."""
+        named = (self.api_key_file, self.access_token_file, self.mcp_token_file, self.write_api_key_file)
         return tuple(path for path in named if path is not None)
 
     @property

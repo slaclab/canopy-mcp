@@ -37,6 +37,7 @@ READ_KEY = "server-read-key"
 WRITE_KEY = "server-write-key"
 CLIENT_KEY = "client-supplied-key"
 ACCESS = "access-credential"
+MCP = "mcp-credential"
 BASE = "http://canopy-api:8000"
 ROWS = load_write_outcome_vectors()["rows"]
 BODY = b'{"value": 1.5}'
@@ -76,6 +77,7 @@ def _settings(tmp_path: Path, **overrides: object) -> Settings:
         "api_key": READ_KEY,
         "drafts_dir": drafts,
         "access_token_file": _secret(tmp_path, "access", ACCESS),
+        "mcp_token_file": _secret(tmp_path, "mcp", MCP),
         "put_relay": True,
         "write_api_key_file": _secret(tmp_path, "front.write", WRITE_KEY),
     }
@@ -97,6 +99,7 @@ def clean_env(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
         "CANOPY_WRITE_API_KEY_FILE",
         "CANOPY_PUT_RELAY_TIMEOUT_S",
         "CANOPY_ACCESS_TOKEN_FILE",
+        "CANOPY_MCP_TOKEN_FILE",
         "CANOPY_API_KEY_FILE",
     ):
         monkeypatch.delenv(name, raising=False)
@@ -436,6 +439,7 @@ def test_relay_settings_read_from_env(monkeypatch: pytest.MonkeyPatch, tmp_path:
     monkeypatch.setenv("CANOPY_PUT_RELAY", "1")
     monkeypatch.setenv("CANOPY_WRITE_API_KEY_FILE", str(_secret(tmp_path, "front.write", WRITE_KEY)))
     monkeypatch.setenv("CANOPY_ACCESS_TOKEN_FILE", str(_secret(tmp_path, "access", ACCESS)))
+    monkeypatch.setenv("CANOPY_MCP_TOKEN_FILE", str(_secret(tmp_path, "mcp", MCP)))
     monkeypatch.setenv("CANOPY_PUT_RELAY_TIMEOUT_S", "12.5")
     s = Settings()
     assert s.put_relay is True
@@ -457,7 +461,13 @@ def test_relay_on_without_a_write_key_file_refuses_to_start(tmp_path: Path) -> N
 
 def test_relay_on_without_an_access_credential_refuses_to_start(tmp_path: Path) -> None:
     with pytest.raises(RelayConfigError, match="CANOPY_ACCESS_TOKEN_FILE"):
-        _settings(tmp_path, access_token_file=None)
+        _settings(tmp_path, access_token_file=None, mcp_token_file=None)
+
+
+def test_relay_on_without_an_mcp_credential_refuses_to_start(tmp_path: Path) -> None:
+    """Without its own credential /mcp takes the access token, which also opens the relay."""
+    with pytest.raises(RelayConfigError, match="CANOPY_MCP_TOKEN_FILE"):
+        _settings(tmp_path, mcp_token_file=None)
 
 
 @pytest.mark.parametrize("content", [None, "", "two tokens"])

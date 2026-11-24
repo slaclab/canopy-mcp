@@ -19,9 +19,14 @@ embedding host's proxy, i.e. from a browser session; every other route stays
 reachable through the proxy, which is what the viewer routes are for. With
 ``CANOPY_ACCESS_TOKEN_FILE`` set, :class:`~canopy_mcp.access.AccessGate` takes
 its place: every route, ``/mcp`` included, answers only a request carrying the
-credential, and the proxy that adds it is how ``/mcp`` is reached. ``GET /health``
-stays open either way, and ``/mcp/`` is a redirect to ``/mcp``, never the
-transport itself.
+credential, and the proxy that adds it is how ``/mcp`` is reached. With
+``CANOPY_MCP_TOKEN_FILE`` as well (required with ``CANOPY_PUT_RELAY`` on),
+``/mcp`` answers only that second credential and every other route only the
+first, so the agent is handed the MCP credential and the browser, through the
+proxy, the access credential. The agent then reaches ``/mcp`` directly or
+through a proxy route that adds no access credential of its own: a request
+carrying the header twice is refused. ``GET /health`` stays open either way, and
+``/mcp/`` is a redirect to ``/mcp``, never the transport itself.
 
 One lifespan first flattens the color scheme (:func:`~canopy.core.color_scheme.get_color_scheme`,
 so a bad ``CANOPY_THEME_FILE`` logs its one ERROR at boot, not on the first
@@ -61,9 +66,11 @@ from canopy_mcp.http import (
 )
 from canopy_mcp.store import open_stores
 from canopy_mcp.access import (
+    MCP_PATH,
     OPEN_ROUTE,
     WS_POLICY_VIOLATION,
     AccessGate,
+    CredentialFileError,
     read_secret_file,
 )
 from canopy_mcp.client import make_client
@@ -75,8 +82,6 @@ from canopy_mcp.catalog import CatalogError, set_catalog, load_catalog
 from canopy_mcp.forward import build_forward_routes
 from canopy.core.color_scheme import get_color_scheme
 from canopy_mcp.shared_library import mount_library
-
-MCP_PATH = "/mcp"
 
 StartupHook = Callable[[Starlette], AbstractAsyncContextManager[Any]]
 
@@ -186,14 +191,23 @@ def create_app(
     browser loads the viewer from; left out, it is ``CANOPY_SELF_URL`` and then
     :data:`~canopy_mcp.config.DEFAULT_SELF_URL`.
 
-    A configured access-token file is read once, before anything else is built,
-    so one that cannot supply a credential raises here and nothing is served.
+    The configured access-token and MCP-token files are read once, before
+    anything else is built, so one that cannot supply a credential, or an MCP
+    token equal to the access token, raises here and nothing is served.
     """
     settings = settings or get_settings()
-    token = None
+    token = mcp_token = None
     if settings.access_token_file is not None:
         token = read_secret_file("CANOPY_ACCESS_TOKEN_FILE", settings.access_token_file)
-        guard = Middleware(AccessGate, token=token)
+    if settings.mcp_token_file is not None:
+        mcp_token = read_secret_file("CANOPY_MCP_TOKEN_FILE", settings.mcp_token_file)
+        if mcp_token == token:
+            raise CredentialFileError(
+                f"CANOPY_MCP_TOKEN_FILE {settings.mcp_token_file}: holds the same credential as "
+                "CANOPY_ACCESS_TOKEN_FILE; the two must differ"
+            )
+    if token is not None:
+        guard = Middleware(AccessGate, token=token, mcp_token=mcp_token)
     else:
         guard = Middleware(ProxiedMcpGuard, mark_headers=settings.proxy_mark_header_names)
     register_all()

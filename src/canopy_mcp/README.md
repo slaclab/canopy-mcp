@@ -46,7 +46,8 @@ unset.
 |---|---|---|
 | `CANOPY_BASE_URL` | `http://127.0.0.1:8000` | Where the canopy backend is reachable. |
 | `CANOPY_API_KEY_FILE` | unset | File holding the read-scope key sent to the backend. When set, `CANOPY_API_KEY` is ignored. |
-| `CANOPY_ACCESS_TOKEN_FILE` | unset | File holding the credential every request except `GET /health` must carry as `X-Canopy-Access`. Unset means no credential is asked for. |
+| `CANOPY_ACCESS_TOKEN_FILE` | unset | File holding the credential every request except `GET /health` must carry as `X-Canopy-Access`. With `CANOPY_MCP_TOKEN_FILE` set, requests under `/mcp` carry that one instead. Unset means no credential is asked for. |
+| `CANOPY_MCP_TOKEN_FILE` | unset | File holding the credential requests under `/mcp` must carry as `X-Canopy-Access`. The access token then no longer opens `/mcp`, and this one opens no other route. It needs `CANOPY_ACCESS_TOKEN_FILE` and a different value; otherwise the server does not start. Unset means the access token opens `/mcp` too. |
 | `CANOPY_API_KEY` | empty | The read-scope key itself, when no key file is named. Empty means no key is sent. |
 | `CANOPY_SELF_URL` | loopback on the served port | The address this server is reachable at: the screenshot browser loads its pages from it, and without `CANOPY_URL_PREFIX` the screen URLs the tools return start with it. |
 | `CANOPY_PUBLIC_URL` | `CANOPY_SELF_URL` | The absolute base of the screen URLs the tools return, when the agent's browser reaches the server under another address. Every route but `GET /health` answers only a `Host` that is loopback or one of those two URLs' hosts (421 otherwise), so a proxy that keeps the browser's `Host` sets this. The API's WebSocket relays also accept a browser only from those URLs' origins or the page's own loopback origin. |
@@ -65,7 +66,7 @@ unset.
 | `CANOPY_CONFIRM_WRITES` | `0` | `1` makes every write the viewer sends ask for one confirmation per click first. A backend whose heartbeat `writes` state is `asked` is asked whatever this says. |
 | `CANOPY_WORKSPACE` | `0` | `1` lets an agent read and change the operator's workspace. Only for one server process serving one operator. See *The workspace* below. |
 | `CANOPY_PV_MODE` | `hare` | `mock` makes the served viewer draw PVs from the mock service instead of the backend. |
-| `CANOPY_PUT_RELAY` | `0` | `1` relays the one write route, `PUT /hare/v1/pvs/{pv}`, to the backend; every other mutating path stays 405. It needs `CANOPY_ACCESS_TOKEN_FILE` and `CANOPY_WRITE_API_KEY_FILE`; without either the server does not start. |
+| `CANOPY_PUT_RELAY` | `0` | `1` relays the one write route, `PUT /hare/v1/pvs/{pv}`, to the backend; every other mutating path stays 405. It needs `CANOPY_ACCESS_TOKEN_FILE`, `CANOPY_MCP_TOKEN_FILE` and `CANOPY_WRITE_API_KEY_FILE`; without any of them the server does not start. |
 | `CANOPY_WRITE_API_KEY_FILE` | unset | File holding the write-scope key the relay sends upstream. There is no environment form of this key. |
 | `CANOPY_PUT_RELAY_TIMEOUT_S` | `27` | Seconds one relayed write may take upstream before the server answers 504. |
 | `CANOPY_RELAY_CONNECT_RETRY_S` | `0` | Seconds the WebSocket relays keep retrying a backend that refuses the connection; `0` is one attempt. |
@@ -92,6 +93,28 @@ simply leaves out. Run such a server on a single-user host, bound to
 loopback (the default). On a host other users can reach, set the access token:
 every route then answers only requests that carry it, and the embedding
 host's proxy adds it.
+
+The access token alone opens `/mcp` as well as every route the browser uses,
+the PV-write relay included, so an agent handed it could also drive writes.
+`CANOPY_MCP_TOKEN_FILE` gives `/mcp` a credential of its own. Requests under
+`/mcp` then need it and refuse the access token, and it opens no other route.
+Give the agent the MCP token and leave the access token to the proxy.
+`CANOPY_PUT_RELAY=1` needs this split, and the two files must hold different
+values. Both travel in `X-Canopy-Access`, so the agent no longer reaches
+`/mcp` through a proxy that adds the access token to every request: the
+access token is refused there, and the agent's own header beside the proxy's
+is two values, which is refused too. Point the agent at the server directly,
+or at a proxy route for `/mcp` that passes the agent's header on and adds
+none of its own. The server's own screenshot browser still carries the
+access token, but it sends only GET, HEAD and OPTIONS, so it cannot reach
+the relay.
+
+The split does not cover a process running as the server's user: it can read
+either token file, and the write key file, directly. Keep those files
+readable by that user only, and do not run agents as that user. Nor does it
+cover an agent that, with `CANOPY_WORKSPACE=1`, puts a screen with write
+buttons in front of the operator. `CANOPY_CONFIRM_WRITES=1` asks before each
+such write.
 
 ## Host stylesheets
 
@@ -157,8 +180,9 @@ and screenshotted. An authoring tool refuses it with `read_only_store`.
 each `siblings` source, the sub-screens it finds beside `path`, and the
 images beside each of them. It reads them only under `CANOPY_LEGACY_ROOTS`.
 Symlinks are followed before the check, so a link out of a root is refused.
-`CANOPY_API_KEY_FILE`, `CANOPY_ACCESS_TOKEN_FILE` and
-`CANOPY_WRITE_API_KEY_FILE` are refused even inside a root, under any name. A
+`CANOPY_API_KEY_FILE`, `CANOPY_ACCESS_TOKEN_FILE`, `CANOPY_MCP_TOKEN_FILE`
+and `CANOPY_WRITE_API_KEY_FILE` are refused even inside a root, under any
+name. A
 `path` or `siblings` source outside the roots refuses the whole call
 (`path_not_allowed`) before anything is read. A sub-screen beside `path` that
 lies outside them counts as missing, and an image gets the status
