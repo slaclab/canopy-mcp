@@ -5,11 +5,16 @@ or opens, each through ``POST /converter/v1/conversions`` (synchronous, one
 file per request), and writes them as drafts beside each other:
 
 * **Paths.** ``path`` and every ``siblings`` source path must be absolute after
-  ``~`` expansion; otherwise the call refuses, naming the key, before any
-  conversion is posted. There is no allow-list: the tool reads any file the
-  server's user can read and posts it to the converter, and copies images
-  found beside it (limited to image suffixes and the asset grammar). Run the
-  server as a user whose readable files may be shown to the agent.
+  ``~`` expansion, and must resolve (symlinks followed) under one of the
+  ``CANOPY_LEGACY_ROOTS`` directories without being one of the configured
+  secret files (:attr:`~canopy_mcp.config.Settings.secret_file_paths`, any
+  name for them). Otherwise the call refuses, naming the keys, before any file
+  is read or any conversion is posted. With no roots set, ``path`` and
+  ``siblings`` always refuse (``legacy_roots_unset``) and only ``content``
+  converts. The same check (:func:`_confined`) limits the default sibling
+  source, which is not found outside the roots, and every image copied from
+  beside a source (``not_allowed``). Inside the roots the tool still reads any
+  file the server's user can read, so keep only legacy panels there.
 * **Ref matching by key.** Each ref of the converted PARENT is matched to a
   source by key (:mod:`canopy_mcp.refs`): a ``siblings`` entry, else the default
   source ``realpath(dirname(path)/key.<kind>)`` when that file exists. A ref that
@@ -103,14 +108,15 @@ class _Unit:
 
     @classmethod
     def from_file(cls, draft_id: str, kind: str, path: str) -> _Unit:
-        """The unit for the legacy source at ``path`` (read now), titled by its file stem."""
+        """The unit for the legacy source at ``path`` (read now, through its realpath), titled by its file stem."""
+        real = os.path.realpath(path)
         return cls(
             draft_id,
             kind,
             os.path.basename(path),
-            _read_source(path),
+            _read_source(real),
             PurePosixPath(path).stem,
-            source_path=os.path.realpath(path),
+            source_path=real,
         )
 
 
@@ -120,6 +126,37 @@ def _expand(raw: Any) -> str | None:
         return None
     expanded = os.path.expanduser(raw)
     return expanded if os.path.isabs(expanded) else None
+
+
+def _under(real: str, root: Path) -> bool:
+    resolved = os.path.realpath(root)
+    try:
+        return os.path.commonpath([real, resolved]) == resolved
+    except ValueError:  # another drive
+        return False
+
+
+def _same_file(real: str, other: Path) -> bool:
+    try:
+        return os.path.samefile(real, other)
+    except OSError:
+        return False
+
+
+def _confined(path: str, settings: Settings) -> str | None:
+    """``realpath(path)`` when it lies under a ``CANOPY_LEGACY_ROOTS`` root and is no secret file, else ``None``.
+
+    Both sides are resolved first, so a symlink out of the roots is refused,
+    and a path outside the roots is never opened. A configured secret file is
+    refused even inside a root, under any name: the same realpath, or the same
+    file (a hard link).
+    """
+    real = os.path.realpath(path)
+    if not any(_under(real, root) for root in settings.legacy_root_paths):
+        return None
+    if any(real == os.path.realpath(secret) or _same_file(real, secret) for secret in settings.secret_file_paths):
+        return None
+    return real
 
 
 def _read_source(path: str) -> bytes:
@@ -206,7 +243,9 @@ def _sibling_sources(siblings: dict[str, str]) -> dict[str, str]:
     return out
 
 
-def _siblings_of(parent: _Unit, parent_id: str, path: str | None, kind: str, sources: dict[str, str]) -> list[_Unit]:
+def _siblings_of(
+    parent: _Unit, parent_id: str, path: str | None, kind: str, sources: dict[str, str], settings: Settings
+) -> list[_Unit]:
     """The sibling units the parent's refs resolve to (first appearance order, de-duplicated)."""
     units: list[_Unit] = []
     seen = {parent_id}
@@ -219,8 +258,9 @@ def _siblings_of(parent: _Unit, parent_id: str, path: str | None, kind: str, sou
         assert key is not None
         source = sources.get(key)
         if source is None and path is not None:
-            candidate = os.path.realpath(os.path.join(os.path.dirname(path), f"{key}.{kind}"))
-            source = candidate if os.path.isfile(candidate) else None
+            # Outside the roots the default source is not looked for, so it is as missing as an absent file.
+            candidate = _confined(os.path.join(os.path.dirname(path), f"{key}.{kind}"), settings)
+            source = candidate if candidate is not None and os.path.isfile(candidate) else None
         if source is None:
             continue  # missing: not written (check reports it)
         seen.add(target)
@@ -235,6 +275,8 @@ _DETAIL = {
     "or no image suffix); nothing was copied",
     "no_source": "converted from content, so there is no source directory to copy the image from",
     "missing": "no regular file at the source path beside the legacy file",
+    "not_allowed": "the source resolves outside CANOPY_LEGACY_ROOTS or to one of this server's secret files; "
+    "nothing was copied",
     "too_large": f"the source exceeds the {MAX_ASSET_BYTES}-byte asset limit; nothing was copied",
     "conflict": "an earlier ref in this call already stored different bytes at this path; not written",
 }
@@ -250,7 +292,7 @@ def _asset(
 
 
 async def _copy_one(
-    unit: _Unit, ref: str, store: DraftStore, overwrite: bool, seen: dict[str, bytes]
+    unit: _Unit, ref: str, store: DraftStore, overwrite: bool, seen: dict[str, bytes], settings: Settings
 ) -> dict[str, Any]:
     """Copy one image ref of ``unit`` into the store and report it."""
     found = resolve(screen_path(unit.draft_id), (), ref, kind="image")
@@ -261,7 +303,9 @@ async def _copy_one(
     assert relpath is not None
     if unit.source_path is None:
         return _asset(unit, ref, path, None, "no_source")
-    source = os.path.realpath(os.path.join(os.path.dirname(unit.source_path), ref))
+    source = _confined(os.path.join(os.path.dirname(unit.source_path), ref), settings)
+    if source is None:
+        return _asset(unit, ref, path, None, "not_allowed")
     try:
         st = os.stat(source)
     except FileNotFoundError:
@@ -295,11 +339,13 @@ async def _copy_one(
     return _asset(unit, ref, path, size, written)
 
 
-async def _copy_images(units: list[_Unit], store: DraftStore, overwrite: bool) -> list[dict[str, Any]]:
+async def _copy_images(
+    units: list[_Unit], store: DraftStore, overwrite: bool, settings: Settings
+) -> list[dict[str, Any]]:
     """One ``assets[]`` entry per image ref of every unit, in unit then document order."""
     seen: dict[str, bytes] = {}
     return [
-        await _copy_one(unit, ref, store, overwrite, seen)
+        await _copy_one(unit, ref, store, overwrite, seen, settings)
         for unit in units
         for _node_id, _path, ref in iter_image_refs(unit.doc)
     ]
@@ -343,6 +389,13 @@ async def convert_legacy(
     call refuses, lists ``conflicts`` and writes nothing. Relative paths refuse
     naming the offending key.
 
+    ``path`` and every ``siblings`` source must resolve under one of the
+    directories the server allows (``CANOPY_LEGACY_ROOTS``); a source outside
+    them, or one of the server's secret files, refuses with
+    ``reason: path_not_allowed`` naming the keys, and a server that allows none
+    refuses every ``path`` and ``siblings`` with ``legacy_roots_unset``.
+    Nothing is read or converted then. ``content`` always works.
+
     Images (``image-view.src``, ``pv-button.onImage/offImage``) are copied
     from beside each legacy source into the store next to the draft that
     references them; ``overwrite=true`` also replaces a differing stored image.
@@ -361,6 +414,7 @@ async def convert_legacy(
     the source size when known, ``status`` one of ``written``, ``reused``,
     ``replaced``, ``external`` (a URL or ``/`` ref, left alone) or a failure --
     ``missing``, ``above_root``, ``invalid_ref``, ``too_large``, ``not_image``,
+    ``not_allowed`` (the source lies outside ``CANOPY_LEGACY_ROOTS``),
     ``no_source`` (``content`` given, nowhere to copy from), ``conflict``
     (something differing is already stored there) or ``error`` -- which carries
     a ``detail``. ``queue`` is the work left for
@@ -401,6 +455,8 @@ async def convert_legacy(
             f"refused: {', '.join(map(repr, relative))} must be an absolute path (after ~ expansion); nothing was converted",
             keys=relative,
         )
+    if refusal := _confinement_refusal(id, abs_path, siblings, settings):
+        return refusal
 
     kind = _kind_of(kind, abs_path)
     sources = _sibling_sources(siblings)
@@ -413,7 +469,7 @@ async def convert_legacy(
     async with make_client(settings, timeout=CONVERT_TIMEOUT_S) as client:
         await _post(client, parent)
         # A ref that lands on an id the store reserves is not written (check reports it).
-        siblings_found = _siblings_of(parent, id, abs_path, kind, sources)
+        siblings_found = _siblings_of(parent, id, abs_path, kind, sources, settings)
         units = [parent, *(unit for unit in siblings_found if not store.reserves(unit.draft_id))]
         for unit in units[1:]:
             await _post(client, unit)
@@ -454,7 +510,7 @@ async def convert_legacy(
         except ReadOnlyStore:
             return unwritable_refusal(id)
 
-    assets = await _copy_images(units, store, overwrite)
+    assets = await _copy_images(units, store, overwrite, settings)
     queue = await _queue(units, store, settings)
     return {
         "draftId": id,
@@ -467,6 +523,40 @@ async def convert_legacy(
         "queue": queue,
         "scheme": parent.scheme,
     }
+
+
+def _confinement_refusal(
+    draft_id: str, path: str | None, siblings: dict[str, str], settings: Settings
+) -> dict[str, Any] | None:
+    """The refusal for a ``path`` or ``siblings`` source :func:`_confined` does not admit, or ``None``.
+
+    Every source is checked, so nothing is read or posted unless all of them are allowed.
+    """
+    named: list[tuple[str, str | None]] = [("path", path)] if path is not None else []
+    named.extend((key, _expand(source)) for key, source in siblings.items())
+    keys = [key for key, _ in named]
+    if not keys:
+        return None
+    if not settings.legacy_root_paths:
+        return refused(
+            draft_id,
+            "legacy_roots_unset",
+            f"refused: this server reads no legacy files, so {', '.join(map(repr, keys))} cannot be used; "
+            "pass the file text as content instead, or have the operator set CANOPY_LEGACY_ROOTS to the "
+            f"directories (separated by {os.pathsep!r}) convert_legacy may read; nothing was converted",
+            keys=keys,
+        )
+    outside = [key for key, source in named if source is None or _confined(source, settings) is None]
+    if not outside:
+        return None
+    roots = os.pathsep.join(str(root) for root in settings.legacy_root_paths)
+    return refused(
+        draft_id,
+        "path_not_allowed",
+        f"refused: {', '.join(map(repr, outside))} must resolve under CANOPY_LEGACY_ROOTS ({roots}) and "
+        "must not be one of this server's secret files; nothing was converted",
+        keys=outside,
+    )
 
 
 def _conflict(draft_id: str, conflicts: list[str], overwrite: bool) -> dict[str, Any]:

@@ -14,6 +14,7 @@ an explicit environment. Two rules hold for every variable:
   raises :class:`RelayConfigError`. Either way nothing is served.
 """
 
+import os
 import re
 from typing import Literal
 from pathlib import Path
@@ -107,6 +108,10 @@ class Settings(BaseSettings):
     # Whether the authoring tools (server.AUTHORING_TOOLS) are offered; off
     # leaves the tools that only read.
     authoring: bool = True
+    # Directories, separated by os.pathsep, that ``convert_legacy`` may read
+    # legacy files and their images from; empty means it converts ``content``
+    # only. Read the split form from ``legacy_root_paths``.
+    legacy_roots: str = ""
     # Seconds the WebSocket relays keep retrying an upstream that refuses the
     # connection before they close the browser socket; 0 means one attempt.
     relay_connect_retry_s: float = Field(default=0.0, ge=0)
@@ -204,6 +209,15 @@ class Settings(BaseSettings):
                 raise ValueError(f"CANOPY_PROXY_MARK_HEADERS entry {entry!r} is not an HTTP header name")
         return value
 
+    @field_validator("legacy_roots")
+    @classmethod
+    def _refuse_a_legacy_root_that_is_not_absolute(cls, value: str) -> str:
+        # A relative root would be resolved against whatever directory the server started in.
+        for entry in value.split(os.pathsep):
+            if entry and not os.path.isabs(entry):
+                raise ValueError(f"CANOPY_LEGACY_ROOTS entry {entry!r} is not an absolute path")
+        return value
+
     @field_validator("home_screen")
     @classmethod
     def _refuse_a_home_screen_outside_the_library(cls, value: str | None) -> str | None:
@@ -269,6 +283,17 @@ class Settings(BaseSettings):
     def proxy_mark_header_names(self) -> tuple[str, ...]:
         """``X-Forwarded-Prefix`` and the ``proxy_mark_headers`` entries, lower-cased."""
         return ("x-forwarded-prefix", *(name.lower() for name in self.proxy_mark_headers.split()))
+
+    @property
+    def legacy_root_paths(self) -> tuple[Path, ...]:
+        """The ``legacy_roots`` entries in order, empty entries dropped; empty when the setting is."""
+        return tuple(Path(entry) for entry in self.legacy_roots.split(os.pathsep) if entry)
+
+    @property
+    def secret_file_paths(self) -> tuple[Path, ...]:
+        """Every configured secret file: the read key's, the access token's and the write key's."""
+        named = (self.api_key_file, self.access_token_file, self.write_api_key_file)
+        return tuple(path for path in named if path is not None)
 
     @property
     def library_ignored_name_set(self) -> frozenset[str]:

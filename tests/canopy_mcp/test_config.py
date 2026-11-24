@@ -29,6 +29,7 @@ ENV_VARS = (
     "CANOPY_SELF_URL",
     "CANOPY_COLLECTIONS_DIR",
     "CANOPY_FACILITY_COLLECTIONS_DIR",
+    "CANOPY_LEGACY_ROOTS",
 )
 
 
@@ -103,6 +104,30 @@ _README = _ROOT / "src" / "canopy_mcp" / "README.md"
 def test_the_collection_dirs_are_documented_settings(name):
     assert name.removeprefix("CANOPY_").lower() in Settings.model_fields
     assert f"| `{name}` |" in _README.read_text(encoding="utf-8")
+
+
+def test_no_legacy_root_is_set_by_default():
+    assert Settings().legacy_root_paths == ()
+
+
+def test_the_legacy_roots_are_split_on_the_path_separator(monkeypatch, tmp_path):
+    first, second = tmp_path / "panels", tmp_path / "with space"
+    monkeypatch.setenv("CANOPY_LEGACY_ROOTS", os.pathsep.join([str(first), "", str(second), ""]))
+    assert Settings().legacy_root_paths == (first, second)
+
+
+@pytest.mark.parametrize("entry", ["panels", "./panels", "~/panels", " "])
+def test_a_legacy_root_that_is_not_absolute_stops_the_server(monkeypatch, tmp_path, entry):
+    monkeypatch.setenv("CANOPY_LEGACY_ROOTS", os.pathsep.join([str(tmp_path), entry]))
+    with pytest.raises(ValueError, match="CANOPY_LEGACY_ROOTS"):
+        Settings()
+
+
+def test_the_legacy_roots_are_a_documented_setting():
+    assert "legacy_roots" in Settings.model_fields
+    readme = _README.read_text(encoding="utf-8")
+    assert "| `CANOPY_LEGACY_ROOTS` |" in readme
+    assert "CANOPY_LEGACY_ROOTS=/" in readme  # how to get the old, unconfined behaviour back
 
 
 def test_settings_read_the_file_and_self_url_variables(monkeypatch, tmp_path):

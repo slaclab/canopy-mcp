@@ -56,6 +56,7 @@ unset.
 | `CANOPY_LIBRARY_DIR` | unset | A read-only screen library served beside the drafts. Its screens are `library/<id>` to the tools and `/embed/library/<id>` to the viewer. Only its `screens/` subtree is served. |
 | `CANOPY_HOME_SCREEN` | unset | The library screen the viewer opens on, as its id under `CANOPY_LIBRARY_DIR` (`facility/overview`). Handed to the viewer as `config.json`'s `home`. A value that is not a relative path of plain segments (a leading slash, a `.`, `..` or empty segment, a backslash) stops the server at startup. |
 | `CANOPY_AUTHORING` | `1` | `0` takes the authoring tools off the server. |
+| `CANOPY_LEGACY_ROOTS` | unset | The directories `convert_legacy` may read legacy files and their images from, separated by `:` (`;` on Windows). Each must be absolute. Unset means `convert_legacy` converts only `content` and refuses every `path` and `siblings`. See *Legacy files* below. |
 | `CANOPY_PUSH_DIR` | unset | Where `request_push` writes its bundles, one directory per request. Unset means the tool answers `push_unavailable`. |
 | `CANOPY_VIEWS_DIR` | `<CANOPY_DRAFTS_DIR>/views` | Where the saved views are stored. |
 | `CANOPY_COLLECTIONS_DIR` | `<CANOPY_DRAFTS_DIR>/collections` | Where the user's own collections and their selection state are stored. |
@@ -149,6 +150,27 @@ No tool writes a PV. Every write to a screen is checked against the rev the
 caller last saw, so an agent and a person editing in the viewer cannot
 overwrite each other. A library screen (`library/<id>`) can be read, checked
 and screenshotted. An authoring tool refuses it with `read_only_store`.
+
+### Legacy files
+
+`convert_legacy` reads files on the server's disk: the `path` it is given,
+each `siblings` source, the sub-screens it finds beside `path`, and the
+images beside each of them. It reads them only under `CANOPY_LEGACY_ROOTS`.
+Symlinks are followed before the check, so a link out of a root is refused.
+`CANOPY_API_KEY_FILE`, `CANOPY_ACCESS_TOKEN_FILE` and
+`CANOPY_WRITE_API_KEY_FILE` are refused even inside a root, under any name. A
+`path` or `siblings` source outside the roots refuses the whole call
+(`path_not_allowed`) before anything is read. A sub-screen beside `path` that
+lies outside them counts as missing, and an image gets the status
+`not_allowed`. `content` needs no root.
+
+This changes the default. Before `CANOPY_LEGACY_ROOTS` existed,
+`convert_legacy` read any file the server's user could read. Now a server
+without the setting refuses every `path` and `siblings`
+(`legacy_roots_unset`). Set it to the directories that hold the legacy
+panels. `CANOPY_LEGACY_ROOTS=/` restores the old behaviour, except that the
+secret files stay refused. Inside a root the tool still reads any file the
+server's user can read, so keep only legacy panels there.
 
 ## The skills
 

@@ -121,7 +121,13 @@ def _patch_settings(monkeypatch: pytest.MonkeyPatch, settings: Settings) -> None
 def settings(roots: tuple[Path, Path], monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
     personal, library = roots
     spec = write_spec(tmp_path / "spec")
-    s = Settings(base_url="http://canopy.test", drafts_dir=personal, library_dir=library, spec_dir=spec)
+    s = Settings(
+        base_url="http://canopy.test",
+        drafts_dir=personal,
+        library_dir=library,
+        spec_dir=spec,
+        legacy_roots=str(tmp_path),
+    )
     _patch_settings(monkeypatch, s)
     yield s
     set_catalog(None)
@@ -129,8 +135,8 @@ def settings(roots: tuple[Path, Path], monkeypatch: pytest.MonkeyPatch, tmp_path
 
 
 @pytest.fixture
-def personal_only(roots: tuple[Path, Path], monkeypatch: pytest.MonkeyPatch):
-    s = Settings(base_url="http://canopy.test", drafts_dir=roots[0])
+def personal_only(roots: tuple[Path, Path], monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    s = Settings(base_url="http://canopy.test", drafts_dir=roots[0], legacy_roots=str(tmp_path))
     _patch_settings(monkeypatch, s)
     yield s
     set_catalog(None)
