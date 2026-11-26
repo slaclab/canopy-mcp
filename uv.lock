@@ -7,9 +7,6 @@ resolution-markers = [
     "python_full_version < '3.14'",
 ]
 
-[manifest]
-overrides = [{ name = "pydmconverter", git = "https://github.com/slaclab/pydm-converter-tool.git?rev=67129697d7fa8b87309f96e4f08ee05f38dc7867" }]
-
 [[package]]
 name = "aioca"
 version = "2.1"
@@ -235,7 +232,7 @@ requires-dist = [
     { name = "psutil", specifier = ">=6" },
     { name = "pydantic", specifier = ">=2.7" },
     { name = "pydantic-settings", specifier = ">=2.11" },
-    { name = "pydmconverter", specifier = ">=1.1.0" },
+    { name = "pydmconverter", specifier = ">=1.1.1" },
     { name = "sse-starlette", specifier = ">=3.4" },
     { name = "starlette", specifier = ">=0.40" },
     { name = "uvicorn", specifier = ">=0.36" },
@@ -1923,12 +1920,13 @@ wheels = [
 
 [[package]]
 name = "pydmconverter"
-version = "1.0.9.dev8+g67129697d"
-source = { git = "https://github.com/slaclab/pydm-converter-tool.git?rev=67129697d7fa8b87309f96e4f08ee05f38dc7867#67129697d7fa8b87309f96e4f08ee05f38dc7867" }
+version = "1.1.1"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "jsonschema" },
     { name = "pydantic" },
 ]
+sdist = { url = "https://files.pythonhosted.org/packages/59/56/6a09ad5783fdeddb5da45476a75f5440680980d3b82bd1de8e310e8b5495/pydmconverter-1.1.1.tar.gz", hash = "sha256:4e8c9ae228da4f4f1da1e50e807d541d8c88b6bf3216216bd8f1cabe9467b658", size = 835783, upload-time = "2026-11-26T06:23:15.804Z" }
 
 [[package]]
 name = "pyee"
