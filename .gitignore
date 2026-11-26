@@ -63,3 +63,6 @@ dmypy.json
 
 # JetBrains
 .idea/
+
+# canopy-mcp's default drafts store (CANOPY_DRAFTS_DIR)
+/drafts/
