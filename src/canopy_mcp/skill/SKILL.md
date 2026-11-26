@@ -254,6 +254,11 @@ refused with the reason `read_only_store`.
 converts the sub-screens it refers to. Give it the id for the top screen and
 either the absolute `path` of the file or its `content`.
 
+The server reads files only in the directories its operator allows. If the
+call refuses with `legacy_roots_unset` or `path_not_allowed`, tell the user.
+You can still pass the file text as `content`, but its sub-screens and images
+are then not found.
+
 The result has a `queue`: the work the converter left for you. Go through it.
 
 - `unknown_widget`: a legacy widget with no Canopy equivalent. Replace it

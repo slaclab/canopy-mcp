@@ -11,9 +11,11 @@ an explicit environment. Two rules hold for every variable:
 - A secret named by a ``*_FILE`` variable comes only from that file: one that
   cannot supply it raises :class:`~canopy_mcp.access.CredentialFileError`
   instead of falling back, and the PUT relay switched on without its secrets
-  raises :class:`RelayConfigError`. Either way nothing is served.
+  (the write key, the access token and the MCP token) raises
+  :class:`RelayConfigError`. Either way nothing is served.
 """
 
+import os
 import re
 from typing import Literal
 from pathlib import Path
@@ -67,6 +69,11 @@ class Settings(BaseSettings):
     # File holding the credential every request but GET /health must carry
     # as X-Canopy-Access; unset means no credential is asked for.
     access_token_file: Path | None = None
+    # File holding the credential requests under /mcp carry instead, which then
+    # opens nothing else (canopy_mcp.access.AccessGate). Needs access_token_file,
+    # must differ from it, and is required with put_relay on; unset means the
+    # access credential opens /mcp too.
+    mcp_token_file: Path | None = None
     # Address the server is reachable at, for its own screenshot browser and, without
     # a url_prefix, for the URLs the tools return; the launcher fills it in from the
     # port it serves when it is unset.
@@ -107,6 +114,10 @@ class Settings(BaseSettings):
     # Whether the authoring tools (server.AUTHORING_TOOLS) are offered; off
     # leaves the tools that only read.
     authoring: bool = True
+    # Directories, separated by os.pathsep, that ``convert_legacy`` may read
+    # legacy files and their images from; empty means it converts ``content``
+    # only. Read the split form from ``legacy_root_paths``.
+    legacy_roots: str = ""
     # Seconds the WebSocket relays keep retrying an upstream that refuses the
     # connection before they close the browser socket; 0 means one attempt.
     relay_connect_retry_s: float = Field(default=0.0, ge=0)
@@ -204,6 +215,15 @@ class Settings(BaseSettings):
                 raise ValueError(f"CANOPY_PROXY_MARK_HEADERS entry {entry!r} is not an HTTP header name")
         return value
 
+    @field_validator("legacy_roots")
+    @classmethod
+    def _refuse_a_legacy_root_that_is_not_absolute(cls, value: str) -> str:
+        # A relative root would be resolved against whatever directory the server started in.
+        for entry in value.split(os.pathsep):
+            if entry and not os.path.isabs(entry):
+                raise ValueError(f"CANOPY_LEGACY_ROOTS entry {entry!r} is not an absolute path")
+        return value
+
     @field_validator("home_screen")
     @classmethod
     def _refuse_a_home_screen_outside_the_library(cls, value: str | None) -> str | None:
@@ -242,6 +262,18 @@ class Settings(BaseSettings):
             raise RelayConfigError("CANOPY_PUT_RELAY is on but CANOPY_WRITE_API_KEY_FILE is not set")
         if self.access_token_file is None:
             raise RelayConfigError("CANOPY_PUT_RELAY is on but CANOPY_ACCESS_TOKEN_FILE is not set")
+        # Without its own credential /mcp takes the access credential, so an
+        # agent handed that could also drive the relay.
+        if self.mcp_token_file is None:
+            raise RelayConfigError("CANOPY_PUT_RELAY is on but CANOPY_MCP_TOKEN_FILE is not set")
+        return self
+
+    @model_validator(mode="after")
+    def _refuse_an_mcp_token_without_an_access_token(self) -> "Settings":
+        # The MCP credential only splits /mcp off a gated server; alone it
+        # would gate /mcp and leave every other route as open as no token.
+        if self.mcp_token_file is not None and self.access_token_file is None:
+            raise ValueError("CANOPY_MCP_TOKEN_FILE is set but CANOPY_ACCESS_TOKEN_FILE is not")
         return self
 
     @property
@@ -269,6 +301,17 @@ class Settings(BaseSettings):
     def proxy_mark_header_names(self) -> tuple[str, ...]:
         """``X-Forwarded-Prefix`` and the ``proxy_mark_headers`` entries, lower-cased."""
         return ("x-forwarded-prefix", *(name.lower() for name in self.proxy_mark_headers.split()))
+
+    @property
+    def legacy_root_paths(self) -> tuple[Path, ...]:
+        """The ``legacy_roots`` entries in order, empty entries dropped; empty when the setting is."""
+        return tuple(Path(entry) for entry in self.legacy_roots.split(os.pathsep) if entry)
+
+    @property
+    def secret_file_paths(self) -> tuple[Path, ...]:
+        """Every configured secret file: the read key's, the access and MCP tokens' and the write key's."""
+        named = (self.api_key_file, self.access_token_file, self.mcp_token_file, self.write_api_key_file)
+        return tuple(path for path in named if path is not None)
 
     @property
     def library_ignored_name_set(self) -> frozenset[str]:

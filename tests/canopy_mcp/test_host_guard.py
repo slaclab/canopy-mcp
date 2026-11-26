@@ -36,7 +36,16 @@ def _gated(tmp_path: Path, **overrides: object) -> Settings:
     token.write_text(ACCESS + "\n")
     write_key = tmp_path / "write"
     write_key.write_text("write-key\n")
-    return _settings(tmp_path, access_token_file=token, put_relay=True, write_api_key_file=write_key, **overrides)
+    mcp_token = tmp_path / "mcp"
+    mcp_token.write_text("mcp-credential\n")
+    return _settings(
+        tmp_path,
+        access_token_file=token,
+        mcp_token_file=mcp_token,
+        put_relay=True,
+        write_api_key_file=write_key,
+        **overrides,
+    )
 
 
 REFUSED_ROUTES = [

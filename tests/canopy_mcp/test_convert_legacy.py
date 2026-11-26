@@ -29,7 +29,8 @@ ALL_WRITTEN = {PARENT_ID, *SIBLINGS_WRITTEN}
 
 @pytest.fixture
 def settings(tmp_path, monkeypatch):
-    s = Settings(base_url=BASE, drafts_dir=tmp_path / "drafts")
+    # Every test lays its legacy files out under tmp_path; the roots tests below narrow this.
+    s = Settings(base_url=BASE, drafts_dir=tmp_path / "drafts", legacy_roots=str(tmp_path))
     monkeypatch.setattr(drafts, "get_settings", lambda: s)
     monkeypatch.setattr(convert, "get_settings", lambda: s)
     _common.reset_stores()
@@ -705,6 +706,182 @@ def test_description_names_assets():
     assert "assets" in doc
     assert "no_source" in doc and "conflict" in doc
     assert "assets" in (convert.__doc__ or "")
+
+
+# --- CANOPY_LEGACY_ROOTS ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def allowed(settings, tmp_path, monkeypatch):
+    """Narrow the roots to ``tmp_path/allowed``; the ``sources`` tree (``tmp_path/src``) is then outside."""
+    root = tmp_path / "allowed"
+    root.mkdir()
+    monkeypatch.setattr(settings, "legacy_roots", str(root))
+    return root
+
+
+def _refused_unread(out, converter, settings, reason, keys):
+    assert out["refused"] is True
+    assert out["reason"] == reason
+    assert out["keys"] == keys
+    assert "nothing was converted" in out["message"]
+    assert mocks.conversion_requests(converter) == []
+    assert _written(settings) == set()
+
+
+async def test_a_path_outside_the_roots_is_refused_before_it_is_read(settings, converter, sources, allowed):
+    out = await _convert(sources, siblings={})
+    _refused_unread(out, converter, settings, "path_not_allowed", ["path"])
+    assert "CANOPY_LEGACY_ROOTS" in out["message"] and str(allowed) in out["message"]
+
+
+async def test_a_missing_file_outside_the_roots_is_refused_like_one_that_exists(settings, converter, allowed, tmp_path):
+    out = await convert_legacy(id=PARENT_ID, path=str(tmp_path / "nowhere" / "x.bob"), kind="bob")
+    _refused_unread(out, converter, settings, "path_not_allowed", ["path"])
+
+
+async def test_a_root_is_a_directory_not_a_name_prefix(settings, converter, sources, monkeypatch, tmp_path):
+    monkeypatch.setattr(settings, "legacy_roots", str(tmp_path / "sr"))  # "src" starts with "sr"
+    out = await _convert(sources, siblings={})
+    _refused_unread(out, converter, settings, "path_not_allowed", ["path"])
+
+
+@pytest.mark.parametrize("link", ["file", "directory"])
+async def test_a_symlink_out_of_the_roots_is_refused(settings, converter, sources, allowed, link):
+    if link == "file":
+        os.symlink(sources["parent"], allowed / "parent.bob")
+        path = allowed / "parent.bob"
+    else:
+        os.symlink(sources["parent"].parent, allowed / "panel")
+        path = allowed / "panel" / "parent.bob"
+    out = await convert_legacy(id=PARENT_ID, path=str(path), kind="bob")
+    _refused_unread(out, converter, settings, "path_not_allowed", ["path"])
+
+
+async def test_a_symlink_inside_the_roots_is_followed(settings, converter, allowed):
+    real = _plant(allowed / "real" / "top.bob", mocks.SIBLING_DEFAULT.encode())
+    os.symlink(real, allowed / "alias.bob")
+    out = await convert_legacy(id="a/alias", path=str(allowed / "alias.bob"), kind="bob")
+    assert "refused" not in out
+    assert mocks.uploaded_filenames(converter) == ["alias.bob"]
+
+
+async def test_a_sibling_outside_the_roots_refuses_the_whole_call(settings, converter, sources, allowed):
+    parent = _plant(allowed / "panel" / "parent.bob", mocks.PARENT.encode())
+    siblings = {"embedded/_warn.bob": str(sources["warn"])}
+    out = await convert_legacy(id=PARENT_ID, path=str(parent), kind="bob", siblings=siblings)
+    _refused_unread(out, converter, settings, "path_not_allowed", ["embedded/_warn.bob"])
+
+
+async def test_a_default_sibling_that_links_out_of_the_roots_is_not_read(settings, converter, sources, allowed):
+    parent = _plant(allowed / "panel" / "parent.bob", mocks.PARENT.encode())
+    os.symlink(sources["default"], allowed / "panel" / "def.bob")
+    out = await convert_legacy(id=PARENT_ID, path=str(parent), kind="bob")
+    assert "refused" not in out
+    assert mocks.uploaded_filenames(converter) == ["parent.bob"]
+    assert _written(settings) == {PARENT_ID}
+    reasons = sorted(i["reason"] for i in out["queue"] if i["code"] == "unresolved_ref")
+    assert reasons.count("missing") == 4  # def.bob joins _warn, _drop and nosrc
+
+
+@pytest.mark.parametrize("how", ["symlink", "climb"])
+async def test_an_image_outside_the_roots_is_not_copied(settings, converter, allowed, tmp_path, how):
+    outside = _plant(tmp_path / "outside" / "tv.png", PNG)
+    if how == "symlink":
+        (allowed / "images").mkdir()
+        os.symlink(outside, allowed / "images" / "tv.png")
+        draft_id, ref = "a/panel", "images/tv.png"
+    else:
+        draft_id, ref = "a/b/panel", "../outside/tv.png"  # stays in the drafts root, leaves the legacy root
+    asset = _one(await _port(_panel(allowed, ref), draft_id=draft_id))
+    assert asset["status"] == "not_allowed" and asset["bytes"] is None
+    assert "CANOPY_LEGACY_ROOTS" in asset["detail"]
+    _assert_entry_shape(asset)
+    assert not list((settings.drafts_dir / "screens").rglob("*.png"))
+
+
+SECRET_FILES = ("api_key_file", "access_token_file", "mcp_token_file", "write_api_key_file")
+
+
+@pytest.mark.parametrize("setting", SECRET_FILES)
+async def test_a_secret_file_inside_the_roots_is_refused(settings, converter, allowed, monkeypatch, setting):
+    secret = _plant(allowed / "panel.edl", b"one-line-secret\n")
+    monkeypatch.setattr(settings, setting, secret)
+    out = await convert_legacy(id="a/panel", path=str(secret), kind="edl")
+    _refused_unread(out, converter, settings, "path_not_allowed", ["path"])
+    assert "one-line-secret" not in json.dumps(out)
+
+
+@pytest.mark.parametrize("setting", SECRET_FILES)
+async def test_a_secret_file_is_refused_under_another_name(
+    settings, converter, allowed, tmp_path, monkeypatch, setting
+):
+    secret = _plant(tmp_path / "keys" / "front.secret", b"one-line-secret\n")  # outside the roots itself
+    monkeypatch.setattr(settings, setting, secret)
+    os.link(secret, allowed / "hard.bob")
+    os.symlink(allowed / "hard.bob", allowed / "soft.bob")
+    for name in ("hard.bob", "soft.bob"):
+        out = await convert_legacy(id="a/panel", path=str(allowed / name), kind="bob")
+        _refused_unread(out, converter, settings, "path_not_allowed", ["path"])
+
+
+async def test_a_secret_file_is_never_copied_as_an_image(settings, converter, allowed, monkeypatch):
+    secret = _plant(allowed / "images" / "key.png", PNG)
+    monkeypatch.setattr(settings, "write_api_key_file", secret)
+    asset = _one(await _port(_panel(allowed, "images/key.png")))
+    assert asset["status"] == "not_allowed"
+    assert not _asset_file(settings, "a/images/key.png").exists()
+
+
+async def test_the_whole_filesystem_as_the_root_still_refuses_the_secret_files(
+    settings, converter, sources, monkeypatch
+):
+    """``CANOPY_LEGACY_ROOTS=/`` is the documented way back to reading any file, the secret files aside."""
+    monkeypatch.setattr(settings, "legacy_roots", os.path.abspath(os.sep))
+    assert "refused" not in await _convert(sources)
+    monkeypatch.setattr(settings, "access_token_file", sources["warn"])
+    out = await _convert(sources)
+    assert out["refused"] is True and out["reason"] == "path_not_allowed"
+    assert out["keys"] == ["embedded/_warn.bob"]
+
+
+async def test_any_of_several_roots_admits_a_source(settings, converter, sources, allowed, monkeypatch):
+    monkeypatch.setattr(settings, "legacy_roots", os.pathsep.join([str(allowed), str(sources["parent"].parent.parent)]))
+    out = await _convert(sources)
+    assert "refused" not in out and _written(settings) == ALL_WRITTEN
+
+
+@pytest.mark.parametrize("given", ["path", "siblings", "both"])
+async def test_without_roots_path_mode_is_refused_and_says_how_to_set_them(
+    settings, converter, sources, monkeypatch, given
+):
+    monkeypatch.setattr(settings, "legacy_roots", "")
+    if given == "path":
+        out = await _convert(sources, siblings={})
+        keys = ["path"]
+    elif given == "siblings":
+        out = await convert_legacy(id=PARENT_ID, content=mocks.PARENT, kind="bob", siblings=_siblings(sources))
+        keys = list(_siblings(sources))
+    else:
+        out = await _convert(sources)
+        keys = ["path", *_siblings(sources)]
+    _refused_unread(out, converter, settings, "legacy_roots_unset", keys)
+    assert "CANOPY_LEGACY_ROOTS" in out["message"] and "content" in out["message"]
+
+
+async def test_without_roots_content_mode_is_unaffected(settings, converter, monkeypatch):
+    monkeypatch.setattr(settings, "legacy_roots", "")
+    out = await convert_legacy(id="a/c", content=mocks.display(picture("P", "images/tv.png")), kind="bob")
+    assert "refused" not in out
+    assert _written(settings) == {"a/c"}
+    assert _one(out)["status"] == "no_source"
+
+
+def test_the_tool_description_names_the_roots_and_both_refusals():
+    doc = convert_legacy.__doc__ or ""
+    assert "CANOPY_LEGACY_ROOTS" in doc
+    assert "path_not_allowed" in doc and "legacy_roots_unset" in doc and "not_allowed" in doc
+    assert "There is no allow-list" not in (convert.__doc__ or "")
 
 
 # --- refs helpers --------------------------------------------------------------------------------

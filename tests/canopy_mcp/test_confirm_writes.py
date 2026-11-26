@@ -34,6 +34,7 @@ def clean_env(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
         "CANOPY_PUT_RELAY",
         "CANOPY_WRITE_API_KEY_FILE",
         "CANOPY_ACCESS_TOKEN_FILE",
+        "CANOPY_MCP_TOKEN_FILE",
         "CANOPY_API_KEY_FILE",
     ):
         monkeypatch.delenv(name, raising=False)
@@ -55,6 +56,7 @@ def _relay_settings(tmp_path: Path, **extra: Any) -> Settings:
         put_relay=True,
         write_api_key_file=_secret(tmp_path, "front.write", "write-key"),
         access_token_file=_secret(tmp_path, "access", ACCESS),
+        mcp_token_file=_secret(tmp_path, "mcp", "mcp-credential"),
         **extra,
     )
 
