@@ -24,7 +24,7 @@ dependencies = [
     "pydantic>=2.7",
     "pydantic-settings>=2.11",
     # Serves the color scheme the converter's flattener builds.
-    "PyDMConverter>=1.1.0",
+    "PyDMConverter>=1.1.1",
     # The workspace hub's event stream (EventSourceResponse, ends on the server's exit signal).
     "sse-starlette>=3.4",
     "starlette>=0.40",
@@ -82,14 +82,6 @@ packages = ["src/canopy_mcp"]
 
 [tool.uv]
 package = true
-# Temporary: canopy_mcp needs PyDMConverter 1.1.0 (pydmconverter.scheme), which is
-# not on PyPI yet. Until it is, uv takes it from the commit at the head of the
-# pydm-converter-tool PRs that add it. A build from git reports a 1.0.9 dev
-# version, so this replaces every requirement on it, the >=1.1.0 above included.
-# Remove this once 1.1.0 is released.
-override-dependencies = [
-    "pydmconverter @ git+https://github.com/slaclab/pydm-converter-tool.git@67129697d7fa8b87309f96e4f08ee05f38dc7867",
-]
 
 [tool.ruff]
 extend-exclude = ["__init__.py"]
