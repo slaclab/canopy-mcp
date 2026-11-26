@@ -21,8 +21,7 @@ uv run playwright install chromium
 
 Chromium is needed only for the `screenshot` tool; on Linux, add `--with-deps`
 for its system libraries. canopy-mcp depends on canopy from git, pinned in
-`pyproject.toml`. Until PyDMConverter 1.1.0 is on PyPI, uv takes it from git
-too (see `[tool.uv]` in `pyproject.toml`), so install with uv.
+`pyproject.toml`.
 
 ## Run
 

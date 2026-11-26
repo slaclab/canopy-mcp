@@ -9,10 +9,9 @@ updates:
       interval: weekly
       day: wednesday
     open-pull-requests-limit: 5
-    # canopy and PyDMConverter are pinned to git commits by hand (see pyproject.toml).
+    # canopy is pinned to a git commit by hand (see pyproject.toml).
     ignore:
       - dependency-name: "canopy"
-      - dependency-name: "pydmconverter"
     groups:
       python-dependencies:
         patterns:
